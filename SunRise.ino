@@ -1,18 +1,33 @@
-int LED_PIN = 5;
+#include <Wire.h>
+#include "DS1307.h"
+DS1307 clock;//define a object of DS1307 class
+
+
+int LED_PIN = 3;
 int brg;
 int delta = 10;
 
 void setup() {
 
   // PWM setup, see https://etechnophiles.com/change-frequency-pwm-pins-arduino-uno/
-//  TCCR0B = TCCR0B & B11111000 | B00000010; // PWM frequency of 7812.50 Hz
-  TCCR0B = TCCR0B & B11111000 | B00000001; // PWM frequency of 62500.00 Hz
+//  TCCR0B = TCCR0B & B11111000 | B00000010; // D5 & D6 PWM frequency  7812.50 Hz
+//  TCCR0B = TCCR0B & B11111000 | B00000001; // D5 & D6 PWM frequency 62500.00 Hz
+
+  TCCR2B = TCCR2B & B11111000 | B00000001; // D3 & D11 PWM frequency 31372.55 Hz
   pinMode(LED_PIN, OUTPUT);
-  analogWrite(LED_PIN, 128);
+//  analogWrite(LED_PIN, 128);
+  analogWrite(LED_PIN, 64);
 
   // bluetooth setup
   Serial.begin(9600);
   pinMode(13, OUTPUT); 
+
+  // RTC setup
+  clock.begin();
+  clock.fillByYMD(2013,1,19);//Jan 19,2013
+  clock.fillByHMS(15,28,30);//15:28 30"
+  clock.fillDayOfWeek(SAT);//Saturday
+  clock.setTime();//write time to the RTC chip
 
   Serial.println("Ready...");  
 }
@@ -28,6 +43,9 @@ void loop() {
 //  if (brg <= 0 ) {brg = 0; delta = -delta; }
 //  if (brg >= 255) {brg = 255; delta = -delta; }
 //  delay(30);
+
+  printTime();
+
 
  if(Serial.available() > 0)  
   {
@@ -76,4 +94,46 @@ void readCommandFromBT(){
             newData = true;
         }
     }
+}
+
+void printTime()
+{
+  clock.getTime();
+  Serial.print(clock.hour, DEC);
+  Serial.print(":");
+  Serial.print(clock.minute, DEC);
+  Serial.print(":");
+  Serial.print(clock.second, DEC);
+  Serial.print("  ");
+  Serial.print(clock.month, DEC);
+  Serial.print("/");
+  Serial.print(clock.dayOfMonth, DEC);
+  Serial.print("/");
+  Serial.print(clock.year+2000, DEC);
+  Serial.print(" ");
+  switch (clock.dayOfWeek)// Friendly printout the weekday
+  {
+    case MON:
+      Serial.print("MON");
+      break;
+    case TUE:
+      Serial.print("TUE");
+      break;
+    case WED:
+      Serial.print("WED");
+      break;
+    case THU:
+      Serial.print("THU");
+      break;
+    case FRI:
+      Serial.print("FRI");
+      break;
+    case SAT:
+      Serial.print("SAT");
+      break;
+    case SUN:
+      Serial.print("SUN");
+      break;
+  }
+  Serial.println(" ");
 }
