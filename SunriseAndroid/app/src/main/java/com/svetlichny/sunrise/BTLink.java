@@ -9,6 +9,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -28,7 +29,7 @@ public class BTLink {
 
     public void connect(Callback<Void> callback) {
         final UUID SERVER_UUID = fromString("00001101-0000-1000-8000-00805F9B34FB");
-        final String address = "00:19:09:11:0F:5D";
+        final String deviceName = "HC-06";
 
         executor.execute(() -> {
             bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -40,7 +41,20 @@ public class BTLink {
                 bluetoothAdapter.enable();
             }
 
-            BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
+            // connect to first paired device with name = deviceName
+            BluetoothDevice device = null;
+            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+            for (BluetoothDevice d: pairedDevices) {
+                if (d.getName().equals(deviceName)) {
+                    device = d;
+                    break;
+                }
+            }
+            if (device == null) {
+                handler.post(() -> callback.onComplete(null,
+                        String.format("Bluetooth device with name %s not in the list of paired", deviceName)));
+                return;
+            }
             Log.d(TAG, "Device to connect = " + device.getName() + ' ' + device.getAddress());
 
             try {
