@@ -46,7 +46,6 @@ void loop() {
   //  if (brg >= 255) {brg = 255; delta = -delta; }
   //  delay(30);
 
-  //  printTime();
 
 
   if (Serial.available() > 0)
@@ -56,6 +55,7 @@ void loop() {
       Serial.print("Command: ");
       Serial.println(command);
       newCommand = false;
+      printTime();
     }
 
 
