@@ -81,7 +81,8 @@ public class MainActivity extends AppCompatActivity {
             else {
                 Log.d(TAG, "BTLink connected.");
                 String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-                String sunriseTime = "07:00:00";
+//                String sunriseTime = "07:00";
+                String sunriseTime = "06:45";
                 String command = "S" + currentTime + "|" + sunriseTime + "\n";
                 bTLink.send(command, (___, sendError) -> {
                     if (sendError != null){
