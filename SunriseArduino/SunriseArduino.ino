@@ -5,77 +5,132 @@ DS1307 clock;
 
 int LED_PIN = 3;
 int brg;
-int delta = 10;
+#define BRG_MAX 128
+
+#define MODE_OFF 0
+#define MODE_ON  1
+#define MODE_SUNRISE 2
+#define MODE_SWITCHING_ON 3
+#define MODE_SWITCHING_OFF 4
+int mode = MODE_OFF;
+
+struct SUNRISE_TIME {
+  uint8_t hour;
+  uint8_t minute;
+} SunriseTime;
 
 void setup() {
-
   // PWM setup, see https://etechnophiles.com/change-frequency-pwm-pins-arduino-uno/
-  //  TCCR0B = TCCR0B & B11111000 | B00000010; // D5 & D6 PWM frequency  7812.50 Hz
-  //  TCCR0B = TCCR0B & B11111000 | B00000001; // D5 & D6 PWM frequency 62500.00 Hz
   TCCR2B = TCCR2B & B11111000 | B00000001; // D3 & D11 PWM frequency 31372.55 Hz
   pinMode(LED_PIN, OUTPUT);
-  //  analogWrite(LED_PIN, 128);
-  analogWrite(LED_PIN, 64);
 
   // bluetooth setup
   Serial.begin(9600);
   pinMode(13, OUTPUT);
 
-  // RTC setup
-  clock.begin();
-  setTime(11, 50, 0);
-
   Serial.println("Ready...");
 }
 
-//write time to the RTC chip
-void setTime(int h, int m, int s) {
-  clock.fillByHMS(h, m, s);
-  clock.setTime();
-}
 
 const byte numChars = 32;
-char command[numChars];   // an array to store the received data
-boolean newCommand = false;
+char command[numChars];   // command from mobile phone
 
 
 void loop() {
+
+  // is it time to Sunrise?
+  if (mode == MODE_OFF) {
+    clock.getTime();
+    if (SunriseTime.hour == clock.hour && SunriseTime.minute == clock.minute) {
+      Serial.print("Sunrise time");
+      mode = MODE_SUNRISE;
+    }
+  }
+
+  // read command from Bluetooth
+  if (readCommandFromBT()) {
+    Serial.print("Command: ");
+    Serial.println(command);
+    executeCommand();
+  }
+
+  // adjust brightness
+  adjustBrightness();
+
   //  analogWrite(LED_PIN, brg);
   //  brg += delta;
   //  if (brg <= 0 ) {brg = 0; delta = -delta; }
   //  if (brg >= 255) {brg = 255; delta = -delta; }
-  //  delay(30);
+  delay(50);
+}
 
-
-
-  if (Serial.available() > 0)
-  {
-    readCommandFromBT();
-    if (newCommand == true) {
-      Serial.print("Command: ");
-      Serial.println(command);
-      newCommand = false;
-      printTime();
+void adjustBrightness()
+{
+  if (MODE_SUNRISE == mode) {
+    if (brg < BRG_MAX) analogWrite(LED_PIN, ++brg);
+    if (brg == BRG_MAX) {
+      mode = MODE_ON;
     }
+  } else if (mode == MODE_SWITCHING_ON) {
+    if (brg < BRG_MAX) analogWrite(LED_PIN, ++brg);
+    if (brg == BRG_MAX) {
+      mode = MODE_ON;
+    }
+  } else if (mode == MODE_SWITCHING_OFF) {
+    if (brg > 0) analogWrite(LED_PIN, --brg);
+    if (brg == 0) {
+      mode = MODE_OFF;
+    }
+  }
+  Serial.print("Brg=");
+  Serial.println(brg);
+}
 
+void executeCommand()
+{
+  if (strcmp(command, "0") == 0) {
+    Serial.println("MODE_SWITCHING_OFF");
+    mode = MODE_SWITCHING_OFF;
+  } else if (strcmp(command, "1") == 0) {
+    Serial.println("MODE_SWITCHING_ON");
+    mode = MODE_SWITCHING_ON;
+  } else if (command[0] == 'S') {
+    // "sHH:mm:ss|HH:mm"
+    if (strlen(command) != 18) {
+      Serial.println("Wrong command length");
+      return;
+    }
+    if (command[3] != ':' || command[6] != ':' || command[9] != '|' || command[12] != ':') {
+      Serial.println("Wrong command delimiter");
+      return;
+    }
+    clock.hour = atoi(command + 1);
+    clock.minute = atoi(command + 4);
+    clock.second = atoi(command + 7);
+    clock.setTime(); //write time to the RTC chip
+    SunriseTime.hour = atoi(command + 10);
+    SunriseTime.minute = atoi(command + 13);
 
-    //    Incoming_value = Serial.read();      //Read the incoming data and store it into variable Incoming_value
-    //    Serial.print(Incoming_value);        //Print Value of Incoming_value in Serial monitor
-    //    Serial.print("\n");        //New line
-    //    if(Incoming_value == '1'){
-    //      digitalWrite(13, HIGH);  //If value is 1 then LED turns ON
-    //      analogWrite(LED_PIN, 128);
-    //    }
-    //    else if(Incoming_value == '0'){
-    //      digitalWrite(13, LOW);
-    //      analogWrite(LED_PIN, 0);
-    //    }
+    //    clock.getTime();
+    //    char strBuf[50];
+    //    sprintf(strBuf, "%d:%d:%d", x);
+    //    Serial.println(strBuf);
+
+    //    int h = atoi(command+1);
+    //    int m = atoi(command+4);
+    //    int s = atoi(command+7);
+    //    Serial.print("h=");
+    //    Serial.println(h);
+    //    Serial.print("m=");
+    //    Serial.println(m);
+    //    Serial.print("s=");
+    //    Serial.println(s);
+    printTime();
   }
 }
 
 
-
-void readCommandFromBT() {
+bool readCommandFromBT() {
   static byte n = 0;
   char endMarker = '\n';
   char c;
@@ -84,12 +139,12 @@ void readCommandFromBT() {
     if ((c = Serial.read()) == endMarker) {
       command[n] = '\0'; // terminate the string
       n = 0;
-      newCommand = true;
-      break;
+      return true;
     }
     command[n++] = c;
     if (n == numChars) n--;
   }
+  return false;
 }
 
 void printTime()
