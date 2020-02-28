@@ -1,6 +1,9 @@
+#include <SoftwareSerial.h>
 #include <Wire.h>
 #include "DS1307.h"
 
+//SoftwareSerial hc06(2,4); // RX, TX
+SoftwareSerial hc06(0,1); // RX, TX
 DS1307 clock;
 
 #define LED_PIN 3
@@ -37,54 +40,50 @@ void setup() {
   clock.begin();
 
   // bluetooth setup
-  Serial.begin(9600);
-
-  Serial.println("Ready...");
+  hc06.begin(9600);
+  
+  // Serial Monitor setup
+//  Serial.begin(9600);
+//  Serial.println("Ready...");
 }
 
-void loop() {
+void loop() { 
   // is it time to Sunrise?
   if (mode == MODE_OFF) {
     clock.getTime();
 
-printStatus();
     if (SunriseTime.hour == clock.hour && SunriseTime.minute == clock.minute) {
-      Serial.print("Sunrise time");
+//      Serial.print("Sunrise time");
       mode = MODE_SUNRISE;
     }
   }
 
   // read command from Bluetooth
   if (readCommandFromBT()) {
-    Serial.print("Command: ");
-    Serial.println(command);
+    // confirm command
+    hc06.write(command);
+    hc06.write("\n");
+    
+//    Serial.print("Command: ");
+//    Serial.println(command);
     executeCommand();
+
+    printStatus();
   }
 
   // adjust brightness
   adjustBrightness();
 
   // show status
-  showStatus();
+//  showStatus();
 
   delay(25);
 }
 
 void printStatus(){
-  Serial.print("Mode= ");
-  Serial.print(mode);
-  Serial.print(" Time= ");
-  Serial.print(clock.hour, DEC);
-  Serial.print(":");
-  Serial.print(clock.minute, DEC);
-  Serial.print(":");
-  Serial.print(clock.second, DEC);
-  Serial.print(" SunriseTime= ");
-  Serial.print(SunriseTime.hour, DEC);
-  Serial.print(":");
-  Serial.print(SunriseTime.minute, DEC);  
-  Serial.println(" ");
-    
+  static char strBuf[50];
+  sprintf(strBuf, "Mode = %d Time= %d:%d:%d SunriseTime= %d:%d", mode, clock.hour, clock.minute, clock.second, SunriseTime.hour, SunriseTime.minute);  
+  hc06.write(strBuf);
 }
 
 void showStatus() {
@@ -118,17 +117,13 @@ void adjustBrightness()
   if (0 == brg) {
     mode = MODE_OFF;
   }
-  Serial.print("Brg=");
-  Serial.println(brg);
 }
 
 void executeCommand()
 {
   if (strcmp(command, "0") == 0) {
-    Serial.println("MODE_SWITCHING_OFF");
     mode = MODE_SWITCHING_OFF;
   } else if (strcmp(command, "1") == 0) {
-    Serial.println("MODE_SWITCHING_ON");
     mode = MODE_SWITCHING_ON;
   } else if (command[0] == 'S') { // sync    
     // "sHH:mm:ss|HH:mm" current_time|sunrise_time
@@ -146,7 +141,6 @@ void executeCommand()
     clock.second = atoi(command + 7);
     clock.setTime(); //write time to the RTC chip
     SunriseTime.hour = atoi(command + 10);
-//    SunriseTime.hour = 3;
     SunriseTime.minute = atoi(command + 13);
     syncComplete = true;
   }
@@ -158,8 +152,8 @@ bool readCommandFromBT() {
   char endMarker = '\n';
   char c;
 
-  while (Serial.available() > 0) {
-    if ((c = Serial.read()) == endMarker) {
+  while (hc06.available() > 0) {
+    if ((c = hc06.read()) == endMarker) {
       command[n] = '\0'; // terminate the string
       n = 0;
       return true;
