@@ -2,8 +2,7 @@
 #include <Wire.h>
 #include "DS1307.h"
 
-//SoftwareSerial hc06(2,4); // RX, TX
-SoftwareSerial hc06(0,1); // RX, TX
+SoftwareSerial hc06(2,4); // RX, TX
 DS1307 clock;
 
 #define LED_PIN 3
